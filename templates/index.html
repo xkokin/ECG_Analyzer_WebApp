@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ECG Peak Classifier</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+        }
+        header {
+            margin-bottom: 20px;
+        }
+        #upload-section {
+            margin-bottom: 30px;
+        }
+        #canvas-wrapper {
+            overflow-x: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+        canvas {
+            display: block;
+        }
+        #slider-container {
+            margin-top: 10px;
+            margin-bottom: 20px;
+        }
+        #minimap-wrapper {
+            overflow: hidden;
+            height: 60px;
+            position: relative;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+        }
+        #minimap-canvas {
+            width: 100%;
+            height: 100%;
+        }
+        #minimap-indicator {
+            position: absolute;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            background: red;
+        }
+        #prediction-output {
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>ECG Peak Classifier</h1>
+        <p>Upload your ECG signal triplet (.dat, .hea, .atr) with the same name to view MLII lead, detected peaks, and classification results.</p>
+    </header>
+
+    <div id="upload-section">
+        <form id="upload-form" enctype="multipart/form-data">
+            <label for="files">Select 3 files (.dat, .hea, .atr) with the same name:</label><br><br>
+            <input type="file" id="files" name="files" multiple required>
+            <button type="submit">Upload</button>
+        </form>
+    </div>
+
+    <div id="slider-container">
+        <label for="signal-slider">Scroll Through Signal:</label>
+        <input type="range" id="signal-slider" min="0" max="100" value="0" step="1" style="width: 100%;">
+    </div>
+
+    <div id="canvas-wrapper">
+        <canvas id="ecg-canvas" height="300"></canvas>
+    </div>
+
+    <div id="minimap-wrapper">
+        <canvas id="minimap-canvas" height="60"></canvas>
+        <div id="minimap-indicator"></div>
+    </div>
+
+    <div id="prediction-output">
+        <h3>Analysis Summary:</h3>
+        <ul id="analysis-list"></ul>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
