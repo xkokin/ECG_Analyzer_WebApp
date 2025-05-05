@@ -7,17 +7,110 @@
         body {
             font-family: Arial, sans-serif;
             margin: 40px;
+            background-color: #f8f9fa;
         }
         header {
             margin-bottom: 20px;
         }
         #upload-section {
             margin-bottom: 30px;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #legend-container {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 15px;
+            margin: 10px 0 10px 0;
+            font-family: Arial, sans-serif;
+        }
+
+        #legend-container h4 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+
+        .legend-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 12px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            min-width: 150px;
+        }
+        .legend-markers {
+            display: flex;
+            align-items: center;
+            margin-right: 8px;
+            min-width: 35px;
+        }
+        .legend-marker {
+            margin-right: 4px;
+        }
+        .legend-marker.square {
+            width: 10px;
+            height: 10px;
+        }
+        .legend-marker.circle {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .legend-label {
+            font-size: 14px;
+            color: #333;
+        }
+        .legend-note {
+            display: flex;
+            gap: 20px;
+            font-size: 13px;
+            color: #666;
+            margin-top: 5px;
+            padding-top: 5px;
+            border-top: 1px solid #eee;
+        }
+        .legend-note > .square::before {
+            content: "";
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background-color: gray;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        .legend-note > .circle::before {
+            content: "";
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background-color: gray;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        @media (max-width: 768px) {
+            .legend-items {
+            flex-direction: column;
+            gap: 10px;
+            }
         }
         #canvas-wrapper {
-            overflow-x: auto;
-            border: 1px solid #ccc;
-            padding: 10px;
+            border: 1.5px solid #e2e2e2;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
         }
         canvas {
             display: block;
@@ -27,25 +120,56 @@
             margin-bottom: 20px;
         }
         #minimap-wrapper {
-            overflow: hidden;
-            height: 60px;
             position: relative;
+            height: 80px;
             margin-top: 10px;
             border: 1px solid #ccc;
+            background-color: #fff;
+            border-radius: 4px;
+            overflow: hidden;
         }
         #minimap-canvas {
             width: 100%;
             height: 100%;
         }
-        #minimap-indicator {
+        #viewport-indicator {
             position: absolute;
             top: 0;
-            width: 2px;
             height: 100%;
-            background: red;
+            background: rgba(0, 123, 255, 0.2);
+            border: 1px solid rgba(0, 123, 255, 0.5);
+            cursor: move;
         }
         #prediction-output {
             margin-top: 30px;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        input[type="file"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0069d9;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin: 10px 0;
+        }
+        label {
+            font-weight: bold;
         }
     </style>
 </head>
@@ -63,25 +187,397 @@
         </form>
     </div>
 
-    <div id="slider-container">
-        <label for="signal-slider">Scroll Through Signal:</label>
-        <input type="range" id="signal-slider" min="0" max="100" value="0" step="1" style="width: 100%;">
+    <div id="legend-container">
+        <h4>Legend</h4>
+        <div class="legend-items">
+          <div class="legend-item" style="border: 1px solid green; border-radius: 12px; padding: 8px;">
+            <div class="legend-markers">
+              <div class="legend-marker square" style="background-color: green;"></div>
+              <div class="legend-marker circle" style="background-color: green;"></div>
+            </div>
+            <div class="legend-label">N - Normal</div>
+          </div>
+          <div class="legend-item" style="border: 1px solid blue; border-radius: 12px; padding: 8px;">
+            <div class="legend-markers">
+              <div class="legend-marker square" style="background-color: blue;"></div>
+              <div class="legend-marker circle" style="background-color: blue;"></div>
+            </div>
+            <div class="legend-label">S - Supraventricular</div>
+          </div>
+          <div class="legend-item" style="border: 1px solid orange; border-radius: 12px; padding: 8px;">
+            <div class="legend-markers">
+              <div class="legend-marker square" style="background-color: orange;"></div>
+              <div class="legend-marker circle" style="background-color: orange;"></div>
+            </div>
+            <div class="legend-label">V - Premature ventricular</div>
+          </div>
+          <div class="legend-item" style="border: 1px solid purple; border-radius: 12px; padding: 8px;">
+            <div class="legend-markers">
+              <div class="legend-marker square" style="background-color: purple;"></div>
+              <div class="legend-marker circle" style="background-color: purple;"></div>
+            </div>
+            <div class="legend-label">F - Fusion</div>
+          </div>
+          <div class="legend-item" style="border: 1px solid pink; border-radius: 12px; padding: 8px;">
+            <div class="legend-markers">
+              <div class="legend-marker square" style="background-color: pink;"></div>
+              <div class="legend-marker circle" style="background-color: pink;"></div>
+            </div>
+            <div class="legend-label">Q - Unclassifiable / Unknown</div>
+          </div>
+          <div class="legend-item" style="border: 1px solid gray; border-radius: 12px; padding: 8px;">
+            <div class="legend-markers">
+              <div class="legend-marker square" style="background-color: gray;"></div>
+            </div>
+            <div class="legend-label">Not annotated</div>
+          </div>
+        </div>
+        <div class="legend-note">
+          <span class="square">True Annotations</span>
+          <span class="circle">Predictions</span>
+        </div>
     </div>
 
     <div id="canvas-wrapper">
-        <canvas id="ecg-canvas" height="300"></canvas>
+        <canvas id="ecg-canvas"></canvas>
     </div>
 
     <div id="minimap-wrapper">
-        <canvas id="minimap-canvas" height="60"></canvas>
-        <div id="minimap-indicator"></div>
+        <canvas id="minimap-canvas"></canvas>
+        <div id="viewport-indicator"></div>
     </div>
 
-    <div id="prediction-output">
+    <!-- <div id="prediction-output">
         <h3>Analysis Summary:</h3>
         <ul id="analysis-list"></ul>
-    </div>
+    </div> -->
 
+    <!-- <script>
+        let globalSignal = [];
+        let globalPeaks = [];
+        let globalAnnotations = [];
+        let globalPredictions = [];
+        let windowSize = 3000; // samples per window
+        let signalLength = 0;
+        let currentPosition = 0;
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartPos = 0;
+        const classColors = {
+            'N': 'green',
+            'S': 'blue',
+            'V': 'orange',
+            'F': 'purple',
+            'Q': 'pink'
+        };
+
+        // For demo purposes, generate a sample ECG signal if no data is uploaded
+        function generateDemoSignal(length = 60000) {
+            const signal = [];
+            const baselineNoise = 0.1;
+            
+            for (let i = 0; i < length; i++) {
+                // Create a basic sine wave
+                let value = Math.sin(i * 0.1) * 0.5;
+                
+                // Add some random noise
+                value += (Math.random() - 0.5) * baselineNoise;
+                
+                // Add periodic peaks (simulating QRS complexes)
+                if (i % 200 === 0) {
+                    value += 2.0; // R peak
+                } else if (i % 200 === 10) {
+                    value -= 0.5; // S wave
+                } else if (i % 200 === 50) {
+                    value += 0.3; // T wave
+                }
+                signal.push(value);
+            }
+            
+            return signal;
+        }
+
+        window.addEventListener('DOMContentLoaded', function() {
+            resizeCanvases();
+
+            globalSignal = generateDemoSignal();
+            signalLength = globalSignal.length;
+
+            plotSignal(globalSignal, 0, windowSize, globalPeaks);
+            plotMinimap(globalSignal);
+            updateViewportIndicator(0);
+        });
+
+        window.addEventListener('resize', resizeCanvases);
+
+        function resizeCanvases() {
+            const mainCanvas = document.getElementById('ecg-canvas');
+            const minimapCanvas = document.getElementById('minimap-canvas');
+            const mainWrapper = document.getElementById('canvas-wrapper');
+            const minimapWrapper = document.getElementById('minimap-wrapper');
+            
+            mainCanvas.width = mainWrapper.clientWidth - 30;
+            mainCanvas.height = 300;
+            
+            minimapCanvas.width = minimapWrapper.clientWidth;
+            minimapCanvas.height = minimapWrapper.clientHeight;
+            
+            // if we have data, redraw
+            if (globalSignal.length > 0) {
+                plotSignal(globalSignal, currentPosition, currentPosition + windowSize, globalPeaks);
+                plotMinimap(globalSignal);
+                updateViewportIndicator(currentPosition);
+            }
+        }
+
+        document.getElementById('upload-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const input = document.getElementById('files');
+            const files = input.files;
+
+            if (files.length !== 3) {
+                alert("Please select exactly three files (.dat, .hea, .atr) with the same base name.");
+                return;
+            }
+
+            const baseNames = [...files].map(f => f.name.split('.').slice(0, -1).join('.'));
+            const uniqueBaseNames = new Set(baseNames);
+            if (uniqueBaseNames.size !== 1) {
+                alert("All files must have the same base name (e.g., 100.dat, 100.hea, 100.atr)");
+                return;
+            }
+
+            const formData = new FormData();
+            for (let file of files) {
+                formData.append("files", file);
+            }
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                globalSignal = data.signal;
+                signalLength = globalSignal.length;
+                globalPeaks = data.peaks;
+                globalAnnotations = data.annotations;
+                globalPredictions = data.predictions;
+
+                currentPosition = 0;
+
+                plotSignal(globalSignal, 0, windowSize, globalPeaks);
+                plotMinimap(globalSignal);
+                updateViewportIndicator(0);
+                populatePredictions(data.predictions);
+            }).catch(err => {
+                console.error(err);
+                alert("Error uploading or processing file.");
+            });
+        });
+
+        function plotSignal(signal, start = 0, end = null, peaks = []) {
+            const canvas = document.getElementById('ecg-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (!signal.length) return;
+            
+            if (end === null || end > signal.length) {
+                end = Math.min(start + windowSize, signal.length);
+            }
+
+            const visibleSignal = signal.slice(start, end);
+            const maxVal = Math.max(...visibleSignal) + 0.2;
+            const minVal = Math.min(...visibleSignal) - 0.2;
+            const range = maxVal - minVal || 1;
+            
+            // Calculate scaling factors
+            const xScale = canvas.width / (end - start);
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawGrid(ctx, canvas.width, canvas.height);
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#007bff';
+            ctx.lineWidth = 2;
+
+            for (let i = 0; i < visibleSignal.length; i++) {
+                const x = i * xScale;
+                const y = canvas.height - ((visibleSignal[i] - minVal) / range) * (canvas.height * 0.8) - (canvas.height * 0.1);
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+
+            for (let i = 0; i < peaks.length; i++) {
+                const peak = peaks[i];
+                const x = (peak - start) * xScale;
+                const y = canvas.height - ((signal[peak] - minVal) / range) * (canvas.height * 0.8) - (canvas.height * 0.1);
+
+                const predClass = globalPredictions[i];
+                const trueClass = globalAnnotations[i];
+
+                ctx.fillStyle = classColors[trueClass] || 'gray';
+                ctx.fillRect(x - 10, y - 30, 10, 10);
+
+                ctx.beginPath();
+                ctx.fillStyle = classColors[predClass] || 'gray';
+                ctx.arc(x + 15, y - 25, 6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+        }
+
+        function drawGrid(ctx, width, height) {
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 0.5;
+
+            const yStep = height / 10;
+            for (let y = 0; y <= height; y += yStep) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+
+            const xStep = width / 20;
+            for (let x = 0; x <= width; x += xStep) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+        }
+
+        function plotMinimap(signal, peaks = []) {
+            const canvas = document.getElementById('minimap-canvas');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            if (!signal.length) return;
+
+            const step = Math.max(1, Math.ceil(signal.length / width));
+            const downsampled = [];
+
+            for (let i = 0; i < signal.length; i += step) {
+                downsampled.push(signal[i]);
+            }
+
+            const maxVal = Math.max(...downsampled) + 0.2;
+            const minVal = Math.min(...downsampled) - 0.2;
+            const range = maxVal - minVal || 1;
+
+            ctx.clearRect(0, 0, width, height);
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#aaaaaa';
+            ctx.lineWidth = 1;
+
+            for (let i = 0; i < downsampled.length; i++) {
+                const x = (i / downsampled.length) * width;
+                const y = height - ((downsampled[i] - minVal) / range) * (height * 0.8) - (height * 0.1);
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+
+            ctx.fillStyle = 'red';
+            for (let peak of peaks) {
+                const x = (peak / signal.length) * width;
+                const peakValue = signal[peak];
+                const y = height - ((peakValue - minVal) / range) * (height * 0.8) - (height * 0.1);
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function updateViewportIndicator(position) {
+            const indicator = document.getElementById('viewport-indicator');
+            const minimapWrapper = document.getElementById('minimap-wrapper');
+            const wrapperWidth = minimapWrapper.clientWidth;
+
+            const viewportWidth = (windowSize / signalLength) * wrapperWidth;
+            const viewportLeft = (position / signalLength) * wrapperWidth;
+
+            indicator.style.width = `${viewportWidth}px`;
+            indicator.style.left = `${viewportLeft}px`;
+        }
+
+        function populatePredictions(classes) {
+            const list = document.getElementById('analysis-list');
+            if (!list) {
+                return;
+            }
+            list.innerHTML = '';
+
+            classes.forEach((cls, index) => {
+                const li = document.createElement('li');
+                li.textContent = `Peak ${index + 1}: ${cls}`;
+                list.appendChild(li);
+            });
+        }
+
+        const viewportIndicator = document.getElementById('viewport-indicator');
+        const minimapCanvas = document.getElementById('minimap-canvas');
+
+        viewportIndicator.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartPos = currentPosition;
+            viewportIndicator.style.cursor = 'grabbing';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            
+            const deltaX = e.clientX - dragStartX;
+            const minimapWidth = document.getElementById('minimap-wrapper').clientWidth;
+            const pixelsPerSample = minimapWidth / signalLength;
+            
+            let newPosition = dragStartPos + (deltaX / pixelsPerSample);
+            newPosition = Math.max(0, Math.min(signalLength - windowSize, newPosition));
+            
+            currentPosition = Math.round(newPosition);
+            
+            plotSignal(globalSignal, currentPosition, currentPosition + windowSize, globalPeaks);
+            updateViewportIndicator(currentPosition);
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (isDragging) {
+                isDragging = false;
+                viewportIndicator.style.cursor = 'move';
+            }
+        });
+
+        minimapCanvas.addEventListener('click', function(e) {
+            if (isDragging) return; // do not jump if dragging
+            
+            const rect = minimapCanvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const minimapWidth = minimapCanvas.width;
+            
+            const clickPosition = (clickX / minimapWidth) * signalLength;
+            currentPosition = Math.max(0, Math.min(signalLength - windowSize, Math.round(clickPosition - (windowSize / 2))));
+
+            plotSignal(globalSignal, currentPosition, currentPosition + windowSize, globalPeaks);
+            updateViewportIndicator(currentPosition);
+        });
+    </script> -->
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

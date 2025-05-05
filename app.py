@@ -45,22 +45,61 @@ def upload():
         except Exception as e:
             return jsonify({'error': f'Failed to load record: {str(e)}'}), 500
 
-        # Process signal
         signal = record.p_signal[:, 0]
         denoised = denoise(signal)
         peaks, _ = find_peaks(denoised, distance=150)
         valid_peaks = peaks[(peaks > 128) & (peaks < len(denoised) - 128)]
         segments = np.array([denoised[p - 128:p + 128] for p in valid_peaks])
         segments = segments[..., np.newaxis]
-        predictions = predict_beats(model, segments)
+        predictions = np.argmax(predict_beats(model, segments), axis=1)
+        predicted_labels = np.vectorize(get_class_of_prediction)(predictions)
+        annotation_labels = match_peaks_to_annotations(valid_peaks, annotation)
 
-        # Build response
         response = {
             'signal': denoised.tolist(),
             'peaks': valid_peaks.tolist(),
-            'predictions': predictions.tolist()
+            'predictions': predicted_labels.tolist(),
+            'annotation_locations': np.array(annotation.sample).tolist(),
+            'annotations': annotation_labels,
         }
         return jsonify(response)
+
+
+def get_class_of_symbol(symbol):
+    aami_map = {
+        'N': 'N', 'L': 'N', 'R': 'N', 'e': 'N', 'j': 'N',
+        'A': 'S', 'a': 'S', 'J': 'S', 'S': 'S',
+        'V': 'V', 'E': 'V',
+        'F': 'F',
+        '/': 'Q', 'f': 'Q', 'Q': 'Q', 'P': 'Q', '|': 'Q', '~': 'Q'
+    }
+    if symbol in aami_map:
+        return aami_map[symbol]
+    else:
+        print(">> symbol not in map", symbol)
+        return None
+
+
+def get_class_of_prediction(prediction_index):
+    aami_classes = ['N', 'S', 'V', 'F', 'Q']
+    return aami_classes[prediction_index]
+
+
+def match_peaks_to_annotations(peaks, annotation, max_distance=128):
+    ann_samples = np.array(annotation.sample)
+    ann_symbols = np.array(annotation.symbol)
+
+    matched_labels = []
+    for peak in peaks:
+        idx = np.argmin(np.abs(ann_samples - peak)) # finds the closest annotation
+        distance = abs(ann_samples[idx] - peak)
+
+        if distance <= max_distance:
+            matched_labels.append(get_class_of_symbol(ann_symbols[idx]))
+        else:
+            matched_labels.append(None)
+
+    return matched_labels
 
 
 if __name__ == '__main__':
