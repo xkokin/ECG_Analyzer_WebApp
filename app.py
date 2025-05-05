@@ -9,6 +9,7 @@ from denoise import denoise
 from scipy.signal import find_peaks
 from collections import Counter
 
+import tempfile
 import json
 
 app = Flask(__name__)
@@ -26,45 +27,41 @@ def upload():
     if len(files) != 3:
         return jsonify({'error': 'Please upload exactly 3 files (.dat, .hea, .atr) with the same base name.'}), 400
 
-    # Save files and extract base names
-    base_names = []
-    for file in files:
-        filename = secure_filename(file.filename)
-        base_name = filename.split('.')[0]
-        base_names.append(base_name)
-        save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(save_path)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base_names = []
+        for file in files:
+            filename = secure_filename(file.filename)
+            base_name = filename.split('.')[0]
+            base_names.append(base_name)
+            file.save(os.path.join(tmpdir, filename))
 
-    # Ensure all files have the same base name
-    if len(set(base_names)) != 1:
-        return jsonify({'error': 'All files must have the same base name (e.g., 100.dat, 100.hea, 100.atr).'}), 400
+        if len(set(base_names)) != 1:
+            return jsonify({'error': 'All files must have the same base name.'}), 400
 
-    rec_name = base_names[0]
+        rec_name = base_names[0]
+        try:
+            record = wfdb.rdrecord(os.path.join(tmpdir, rec_name))
+            annotation = wfdb.rdann(os.path.join(tmpdir, rec_name), 'atr')
+        except Exception as e:
+            return jsonify({'error': f'Failed to load record: {str(e)}'}), 500
 
-    # Load WFDB record
-    try:
-        record = wfdb.rdrecord(f'uploads/{rec_name}')
-        annotation = wfdb.rdann(f'uploads/{rec_name}', 'atr')
-    except Exception as e:
-        return jsonify({'error': f'Failed to load record: {str(e)}'}), 500
+        # Process signal
+        signal = record.p_signal[:, 0]
+        denoised = denoise(signal)
+        peaks, _ = find_peaks(denoised, distance=150)
+        valid_peaks = peaks[(peaks > 128) & (peaks < len(denoised) - 128)]
+        segments = np.array([denoised[p - 128:p + 128] for p in valid_peaks])
+        segments = segments[..., np.newaxis]
+        predictions = predict_beats(model, segments)
 
-    # Process signal
-    signal = record.p_signal[:, 0]
-    denoised = denoise(signal)
-    peaks, _ = find_peaks(denoised, distance=150)
-    valid_peaks = peaks[(peaks > 128) & (peaks < len(denoised) - 128)]
-    segments = np.array([denoised[p - 128:p + 128] for p in valid_peaks])
-    segments = segments[..., np.newaxis]
-    predictions = predict_beats(model, segments)
-
-    # Build response
-    response = {
-        'signal': denoised.tolist(),
-        'peaks': valid_peaks.tolist(),
-        'predictions': predictions.tolist()
-    }
-    return jsonify(response)
+        # Build response
+        response = {
+            'signal': denoised.tolist(),
+            'peaks': valid_peaks.tolist(),
+            'predictions': predictions.tolist()
+        }
+        return jsonify(response)
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
