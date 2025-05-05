@@ -15,7 +15,7 @@ import json
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 
-model = load_ecg_model('models/final_cnn_lstm_model.h5')
+model = load_ecg_model('models/best_ecg_model.h5')
 
 @app.route('/')
 def index():
