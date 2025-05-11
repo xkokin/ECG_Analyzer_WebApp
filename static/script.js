@@ -116,6 +116,29 @@ document.getElementById('upload-form').addEventListener('submit', function (e) {
         plotMinimap(globalSignal);
         updateViewportIndicator(0);
         populatePredictions(data.predictions);
+
+        if (data.summary) {
+            const summary = data.summary;
+            let tableHTML = '<table border="1" cellpadding="8" style="border-collapse: collapse; width: 100%; text-align: center;">';
+            tableHTML += '<tr><th>Class</th><th>Precision</th><th>Recall</th><th>F1-score</th><th>Support</th></tr>';
+
+            for (const cls in summary) {
+                const row = summary[cls];
+                tableHTML += `<tr>
+                    <td>${cls}</td>
+                    <td>${row.precision}</td>
+                    <td>${row.recall}</td>
+                    <td>${row['f1-score']}</td>
+                    <td>${row.support}</td>
+                </tr>`;
+            }
+
+            tableHTML += '</table>';
+            document.getElementById('summary-table').innerHTML = tableHTML;
+        } else {
+            document.getElementById('summary-table').innerHTML = '<p>No summary available.</p>';
+        }
+
     }).catch(err => {
         console.error(err);
         alert("Error uploading or processing file.");

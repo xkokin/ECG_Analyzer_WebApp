@@ -8,6 +8,7 @@ from model import load_ecg_model, predict_beats
 from denoise import denoise
 from scipy.signal import find_peaks
 from collections import Counter
+from sklearn.metrics import classification_report
 
 import tempfile
 import json
@@ -62,6 +63,22 @@ def upload():
             'annotation_locations': np.array(annotation.sample).tolist(),
             'annotations': annotation_labels,
         }
+
+        y_true = [label for label in annotation_labels if label is not None]
+        y_pred = [p for p, t in zip(predicted_labels, annotation_labels) if t is not None]
+
+        # Generate class-wise summary
+        summary = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
+
+        response['summary'] = {
+            k: {
+                'precision': round(v['precision'], 2),
+                'recall': round(v['recall'], 2),
+                'f1-score': round(v['f1-score'], 2),
+                'support': int(v['support'])
+            } for k, v in summary.items() if k in ['N', 'S', 'V', 'F', 'Q']
+        }
+
         return jsonify(response)
 
 
