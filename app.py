@@ -4,6 +4,7 @@ from flask import Flask, request, render_template, jsonify, send_from_directory
 import wfdb
 import numpy as np
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import RequestEntityTooLarge
 from model import load_ecg_model, predict_beats
 from denoise import denoise
 from scipy.signal import find_peaks
@@ -15,8 +16,13 @@ import json
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 
 model = load_ecg_model('models/best_ecg_model.h5')
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_file_too_large(e):
+    return jsonify({'error': 'Uploaded file(s) too large. Max allowed size is 10 MB.'}), 413
 
 @app.route('/')
 def index():
@@ -25,26 +31,42 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload():
     files = request.files.getlist('files')
-    if len(files) != 3:
-        return jsonify({'error': 'Please upload exactly 3 files (.dat, .hea, .atr) with the same base name.'}), 400
+    
+    validation_result, status = validate_uploaded_files(files, require_atr=False)
+    if status != 200:
+        return jsonify(validation_result), status
+    
+    rec_name = validation_result['base_name']
+    has_atr = validation_result.get('has_atr', False)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        base_names = []
         for file in files:
-            filename = secure_filename(file.filename)
-            base_name = filename.split('.')[0]
-            base_names.append(base_name)
-            file.save(os.path.join(tmpdir, filename))
+            file.save(os.path.join(tmpdir, secure_filename(file.filename)))
 
-        if len(set(base_names)) != 1:
-            return jsonify({'error': 'All files must have the same base name.'}), 400
-
-        rec_name = base_names[0]
         try:
             record = wfdb.rdrecord(os.path.join(tmpdir, rec_name))
-            annotation = wfdb.rdann(os.path.join(tmpdir, rec_name), 'atr')
+            annotation = None
+            if has_atr: # handle missing annotation file
+                try:
+                    annotation = wfdb.rdann(os.path.join(tmpdir, rec_name), 'atr')
+                except Exception as e:
+                    print(f"Warning: Failed to load annotation file: {str(e)}")
+                    has_atr = False
         except Exception as e:
             return jsonify({'error': f'Failed to load record: {str(e)}'}), 500
+
+        mlii_channel = None
+        for i, sig_name in enumerate(record.sig_name):
+            if sig_name.upper() == 'MLII':
+                mlii_channel = i
+                break
+
+        if mlii_channel is None:
+            return jsonify({
+                'error': 'MLII lead not found in this recording. Only recordings with MLII lead can be processed.'
+            }), 400
+
+        signal = record.p_signal[:, mlii_channel]
 
         signal = record.p_signal[:, 0]
         denoised = denoise(signal)
@@ -54,32 +76,88 @@ def upload():
         segments = segments[..., np.newaxis]
         predictions = np.argmax(predict_beats(model, segments), axis=1)
         predicted_labels = np.vectorize(get_class_of_prediction)(predictions)
-        annotation_labels = match_peaks_to_annotations(valid_peaks, annotation)
+        # annotation_labels = match_peaks_to_annotations(valid_peaks, annotation)
 
         response = {
             'signal': denoised.tolist(),
             'peaks': valid_peaks.tolist(),
             'predictions': predicted_labels.tolist(),
-            'annotation_locations': np.array(annotation.sample).tolist(),
-            'annotations': annotation_labels,
+            # 'annotation_locations': np.array(annotation.sample).tolist(),
+            'annotations': [],
         }
 
-        y_true = [label for label in annotation_labels if label is not None]
-        y_pred = [p for p, t in zip(predicted_labels, annotation_labels) if t is not None]
+        if has_atr and annotation is not None:
+            annotation_labels = match_peaks_to_annotations(valid_peaks, annotation)
+            response['annotations'] = annotation_labels
 
-        # Generate class-wise summary
-        summary = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
+            y_true = [label for label in annotation_labels if label is not None]
+            y_pred = [p for p, t in zip(predicted_labels, annotation_labels) if t is not None]
 
-        response['summary'] = {
-            k: {
-                'precision': round(v['precision'], 2),
-                'recall': round(v['recall'], 2),
-                'f1-score': round(v['f1-score'], 2),
-                'support': int(v['support'])
-            } for k, v in summary.items() if k in ['N', 'S', 'V', 'F', 'Q']
-        }
+            # Generate class-wise summary
+            summary = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
+
+            response['summary'] = {
+                k: {
+                    'precision': round(v['precision'], 2),
+                    'recall': round(v['recall'], 2),
+                    'f1-score': round(v['f1-score'], 2),
+                    'support': int(v['support'])
+                } for k, v in summary.items() if k in ['N', 'S', 'V', 'F', 'Q']
+            }
 
         return jsonify(response)
+
+
+def validate_uploaded_files(files, require_atr=True):
+    if not files or all(file.filename == '' for file in files):
+        return {'error': 'No files uploaded'}, 400
+
+    required_extensions = {'.dat', '.hea'}
+    if require_atr:
+        required_extensions.add('.atr')
+
+    valid_extensions = {'.dat', '.hea', '.atr'}
+    uploaded_extensions = set()
+    base_names = set()
+
+    for file in files:
+        filename = secure_filename(file.filename)
+        if not filename:
+            continue
+
+        parts = filename.rsplit('.', 1) # extract basename and extension
+        if len(parts) != 2:
+            continue
+
+        base_name, extension = parts
+        extension = f'.{extension.lower()}'
+
+        if extension not in valid_extensions:
+            return {
+                'error': f'Invalid file type: {extension}. Only .dat, .hea, and .atr files are allowed.'
+            }, 400
+
+        uploaded_extensions.add(extension)
+        base_names.add(base_name)
+
+    missing = required_extensions - uploaded_extensions
+    if missing:
+        return {
+            'error': f'Missing required files: {", ".join(missing)}. Please upload at least .dat and .hea files.'
+        }, 400
+    # if len(uploaded_extensions) != 3 or any(ext not in uploaded_extensions for ext in valid_extensions):
+    #     missing = valid_extensions - uploaded_extensions
+    #     return {
+    #         'error': f'Missing required files: {", ".join(missing)}. Please upload .dat, .hea, and .atr files.'
+    #     }, 400
+
+    if len(base_names) != 1:
+        return {'error': 'All files must have the same base name.'}, 400
+
+    return {
+        'base_name': list(base_names)[0],
+        'has_atr': '.atr' in uploaded_extensions
+    }, 200
 
 
 def get_class_of_symbol(symbol):

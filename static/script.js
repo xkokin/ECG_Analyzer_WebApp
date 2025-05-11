@@ -16,32 +16,6 @@ const classColors = {
     'Q': 'pink'
 };
 
-// For demo purposes, generate a sample ECG signal if no data is uploaded
-function generateDemoSignal(length = 60000) {
-    const signal = [];
-    const baselineNoise = 0.1;
-    
-    for (let i = 0; i < length; i++) {
-        // Create a basic sine wave
-        let value = Math.sin(i * 0.1) * 0.5;
-        
-        // Add some random noise
-        value += (Math.random() - 0.5) * baselineNoise;
-        
-        // Add periodic peaks (simulating QRS complexes)
-        if (i % 200 === 0) {
-            value += 2.0; // R peak
-        } else if (i % 200 === 10) {
-            value -= 0.5; // S wave
-        } else if (i % 200 === 50) {
-            value += 0.3; // T wave
-        }
-        signal.push(value);
-    }
-    
-    return signal;
-}
-
 window.addEventListener('DOMContentLoaded', function() {
     resizeCanvases();
 
@@ -81,8 +55,8 @@ document.getElementById('upload-form').addEventListener('submit', function (e) {
     const input = document.getElementById('files');
     const files = input.files;
 
-    if (files.length !== 3) {
-        alert("Please select exactly three files (.dat, .hea, .atr) with the same base name.");
+    if (![2, 3].includes(files.length)) {
+        alert("Please select at least 2 files (.dat, .hea) with the same base name. Consider providing .atr file with true annotations.");
         return;
     }
 
@@ -104,6 +78,10 @@ document.getElementById('upload-form').addEventListener('submit', function (e) {
     })
     .then(res => res.json())
     .then(data => {
+        if (data.error) {
+            alert(data.error)
+            return
+        }
         globalSignal = data.signal;
         signalLength = globalSignal.length;
         globalPeaks = data.peaks;

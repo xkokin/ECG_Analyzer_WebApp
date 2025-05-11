@@ -92,18 +92,23 @@ ecg-classification-app/
 #### 1. Malicious File Uploads
 
 - **Risk**: Users may upload malicious `.dat` files or files disguised with the wrong extension.
-- **Mitigation**: 
+- **Mitigation**:
   - File validation based on content type and extension.
   - Size and format checks before processing.
+    - 10 MB file limit, which is calculated based on typical recording size:
+      - 30-minute heartbeat recording is ~684 kB -> ~22.8 kB per minute.
+      - We expect recordings of up to 2 hours in length.
+      - 2x safety buffer would bring the estimation to ~5.4 MB - we round it up to 10 MB
   - Temporary storage in a sandboxed directory with cleanup after processing.
 
 #### 2. POST Request Spoofing
 
 - **Risk**: Attackers could simulate malicious POST requests directly to the server.
 - **Mitigation**:
-  - Use CSRF tokens in forms (to be implemented).
+  - Strict file structure and content validation (e.g., extensions, matching base names, expected number of files).
   - Sanitize and validate input before parsing.
-  - Rate-limit or throttle suspicious IPs.
+  - Use CSRF tokens in forms (to be implemented).
+  - Rate-limit or throttle suspicious IPs (to be implemented).
 
 #### 3. Model Degradation and Misclassification
 
@@ -114,7 +119,7 @@ ecg-classification-app/
 
 #### 4. Information Leakage
 
-- **Risk**: User-submitted data might be inadvertently logged or retained.
+- **Risk**: User-submitted data might be unintentionally logged or retained.
 - **Mitigation**:
   - Disable debug logs in production.
   - Ensure temporary files are deleted after use.
